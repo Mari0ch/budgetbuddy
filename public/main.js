@@ -1,29 +1,198 @@
-// public/app.js
+// public/main.js
 
-const API_BASE_URL = '/api/expenses'; // como tu backend está en el mismo dominio/puerto, no hace falta más
+// Endpoints base
+const EXPENSES_URL = '/api/expenses';
+const AUTH_URL = '/api/auth';
 
+// Estado de autenticación en el frontend
+let authToken = null;
+let currentUser = null;
+
+// Elementos del DOM
 const form = document.getElementById('expense-form');
 const formMessage = document.getElementById('form-message');
 const tableBody = document.getElementById('expenses-tbody');
 const tableMessage = document.getElementById('table-message');
 
-// 1) Cargar la lista de gastos al cargar la página
+const authForm = document.getElementById('auth-form');
+const authMessage = document.getElementById('auth-message');
+const loginBtn = document.getElementById('login-btn');
+const registerBtn = document.getElementById('register-btn');
+const logoutBtn = document.getElementById('logout-btn');
+
+const userStatus = document.getElementById('user-status');
+const appSection = document.getElementById('app-section');
+const authSection = document.getElementById('auth-section');
+
+// Utilidad: construir headers con token
+function getAuthHeaders(includeJson = false) {
+  const headers = {};
+  if (includeJson) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  return headers;
+}
+
+// Actualizar la UI según haya token o no
+function updateUIForAuth() {
+  if (authToken && currentUser) {
+    authSection.classList.remove('hidden');
+    appSection.classList.remove('hidden');
+    logoutBtn.classList.remove('hidden');
+    userStatus.textContent = `Sesión iniciada como ${currentUser.email}`;
+  } else {
+    appSection.classList.add('hidden');
+    logoutBtn.classList.add('hidden');
+    userStatus.textContent = 'No has iniciado sesión';
+    // No borramos el formulario de auth: siempre visible
+  }
+}
+
+// Guardar sesión
+function saveSession(token, user) {
+  authToken = token;
+  currentUser = user;
+  localStorage.setItem('authToken', token);
+  localStorage.setItem('authUser', JSON.stringify(user));
+  updateUIForAuth();
+}
+
+// Limpiar sesión
+function clearSession() {
+  authToken = null;
+  currentUser = null;
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('authUser');
+  updateUIForAuth();
+  // Limpiar tabla de gastos
+  tableBody.innerHTML = '';
+  tableMessage.textContent = 'Inicia sesión para ver tus gastos.';
+}
+
+// 1) Al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
-  // Por comodidad, pre-rellenamos la fecha con hoy
-  const dateInput = document.getElementById('date');
-  if (dateInput) {
-    dateInput.value = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  // Cargar token si ya habíamos iniciado sesión antes
+  const storedToken = localStorage.getItem('authToken');
+  const storedUser = localStorage.getItem('authUser');
+
+  if (storedToken && storedUser) {
+    try {
+      authToken = storedToken;
+      currentUser = JSON.parse(storedUser);
+    } catch (e) {
+      clearSession();
+    }
   }
 
-  loadExpenses();
+  // Pre-rellenar fecha de hoy en el formulario de gastos
+  const dateInput = document.getElementById('date');
+  if (dateInput) {
+    dateInput.value = new Date().toISOString().slice(0, 10);
+  }
+
+  updateUIForAuth();
+
+  // Si hay sesión, cargar gastos
+  if (authToken) {
+    loadExpenses();
+  } else {
+    tableMessage.textContent = 'Inicia sesión para ver tus gastos.';
+  }
 });
 
-// 2) Función para cargar gastos desde la API
+// 2) Función para registrar o hacer login
+async function handleAuth(mode) {
+  authMessage.textContent = '';
+  authMessage.classList.remove('error', 'success');
+
+  const name = document.getElementById('auth-name').value.trim();
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+
+  if (!email || !password) {
+    authMessage.textContent = 'Email y contraseña son obligatorios.';
+    authMessage.classList.add('error');
+    return;
+  }
+
+  const body = {
+    email,
+    password
+  };
+  if (mode === 'register') {
+    body.name = name || null;
+  }
+
+  const url = mode === 'login' ? `${AUTH_URL}/login` : `${AUTH_URL}/register`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const msg =
+        errorData.message ||
+        (mode === 'login'
+          ? 'Error en el inicio de sesión.'
+          : 'Error en el registro.');
+      throw new Error(msg);
+    }
+
+    const data = await response.json();
+    saveSession(data.token, data.user);
+
+    authMessage.textContent =
+      mode === 'login'
+        ? 'Has iniciado sesión correctamente.'
+        : 'Registro completado. Sesión iniciada.';
+    authMessage.classList.add('success');
+
+    // Cargar gastos una vez logueado
+    loadExpenses();
+  } catch (error) {
+    console.error(error);
+    authMessage.textContent = error.message;
+    authMessage.classList.add('error');
+  }
+}
+
+// Botones login / registro / logout
+loginBtn.addEventListener('click', () => handleAuth('login'));
+registerBtn.addEventListener('click', () => handleAuth('register'));
+logoutBtn.addEventListener('click', () => {
+  clearSession();
+  authMessage.textContent = 'Has cerrado sesión.';
+  authMessage.classList.add('success');
+});
+
+// 3) Cargar lista de gastos
 async function loadExpenses() {
+  if (!authToken) {
+    tableMessage.textContent = 'Inicia sesión para ver tus gastos.';
+    return;
+  }
+
   tableMessage.textContent = 'Cargando gastos...';
 
   try {
-    const response = await fetch(API_BASE_URL);
+    const response = await fetch(EXPENSES_URL, {
+      headers: getAuthHeaders(false)
+    });
+
+    if (response.status === 401) {
+      // Sesión caducada o token inválido
+      clearSession();
+      tableMessage.textContent = 'Sesión caducada. Inicia sesión de nuevo.';
+      return;
+    }
+
     if (!response.ok) {
       throw new Error('Error al cargar gastos');
     }
@@ -42,7 +211,7 @@ async function loadExpenses() {
   }
 }
 
-// 3) Pintar la tabla de gastos
+// Pintar tabla
 function renderExpenses(expenses) {
   tableBody.innerHTML = '';
 
@@ -78,9 +247,15 @@ function renderExpenses(expenses) {
   });
 }
 
-// 4) Manejar el submit del formulario (crear gasto)
+// 4) Guardar nuevo gasto
 form.addEventListener('submit', async (event) => {
-  event.preventDefault(); // evita recargar la página
+  event.preventDefault();
+
+  if (!authToken) {
+    formMessage.textContent = 'Debes iniciar sesión para guardar gastos.';
+    formMessage.classList.add('error');
+    return;
+  }
 
   formMessage.textContent = '';
   formMessage.classList.remove('error', 'success');
@@ -91,7 +266,8 @@ form.addEventListener('submit', async (event) => {
   const date = document.getElementById('date').value;
 
   if (!description || !amount || !date) {
-    formMessage.textContent = 'Por favor, rellena descripción, importe y fecha.';
+    formMessage.textContent =
+      'Por favor, rellena descripción, importe y fecha.';
     formMessage.classList.add('error');
     return;
   }
@@ -104,19 +280,23 @@ form.addEventListener('submit', async (event) => {
   };
 
   try {
-    const response = await fetch(API_BASE_URL, {
+    const response = await fetch(EXPENSES_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: getAuthHeaders(true),
       body: JSON.stringify(body)
     });
+
+    if (response.status === 401) {
+      clearSession();
+      formMessage.textContent = 'Sesión caducada. Inicia sesión de nuevo.';
+      formMessage.classList.add('error');
+      return;
+    }
 
     if (!response.ok) {
       throw new Error('Error al crear el gasto');
     }
 
-    // Limpiamos los campos (menos la fecha, opcional)
     document.getElementById('description').value = '';
     document.getElementById('amount').value = '';
     document.getElementById('category').value = '';
@@ -124,7 +304,6 @@ form.addEventListener('submit', async (event) => {
     formMessage.textContent = 'Gasto guardado correctamente.';
     formMessage.classList.add('success');
 
-    // Recargar la lista de gastos
     loadExpenses();
   } catch (error) {
     console.error(error);
@@ -135,13 +314,25 @@ form.addEventListener('submit', async (event) => {
 
 // 5) Eliminar gasto
 async function handleDelete(id) {
+  if (!authToken) {
+    alert('Debes iniciar sesión para eliminar gastos.');
+    return;
+  }
+
   const confirmDelete = confirm('¿Seguro que quieres eliminar este gasto?');
   if (!confirmDelete) return;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/${id}`, {
-      method: 'DELETE'
+    const response = await fetch(`${EXPENSES_URL}/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(false)
     });
+
+    if (response.status === 401) {
+      clearSession();
+      alert('Sesión caducada. Inicia sesión de nuevo.');
+      return;
+    }
 
     if (!response.ok) {
       throw new Error('Error al eliminar el gasto');
@@ -154,13 +345,11 @@ async function handleDelete(id) {
   }
 }
 
-// Utilidad: formatear fecha (simple)
+// Utilidad: formatear fecha
 function formatDate(dateString) {
   if (!dateString) return '';
-  // A veces viene como "2025-12-01T00:00:00.000Z"
   const d = new Date(dateString);
   if (isNaN(d.getTime())) {
-    // Por si ya vino en formato YYYY-MM-DD
     return dateString;
   }
   const day = String(d.getDate()).padStart(2, '0');

@@ -4,7 +4,8 @@ const ExpenseModel = require('../models/expense.model');
 const ExpenseController = {
   async getAll(req, res) {
     try {
-      const expenses = await ExpenseModel.getAll();
+      const userId = req.user.id;
+      const expenses = await ExpenseModel.getAllByUser(userId);
       res.json(expenses);
     } catch (error) {
       console.error('Error al obtener los gastos:', error);
@@ -15,7 +16,9 @@ const ExpenseController = {
   async getById(req, res) {
     try {
       const { id } = req.params;
-      const expense = await ExpenseModel.getById(id);
+      const userId = req.user.id;
+
+      const expense = await ExpenseModel.getById(id, userId);
 
       if (!expense) {
         return res.status(404).json({ message: 'Gasto no encontrado' });
@@ -31,6 +34,7 @@ const ExpenseController = {
   async create(req, res) {
     try {
       const { description, amount, category, date } = req.body;
+      const userId = req.user.id;
 
       if (!description || !amount || !date) {
         return res
@@ -42,7 +46,8 @@ const ExpenseController = {
         description,
         amount,
         category,
-        date
+        date,
+        userId
       });
 
       res.status(201).json(expense);
@@ -55,7 +60,9 @@ const ExpenseController = {
   async delete(req, res) {
     try {
       const { id } = req.params;
-      const deleted = await ExpenseModel.delete(id);
+      const userId = req.user.id;
+
+      const deleted = await ExpenseModel.delete(id, userId);
 
       if (!deleted) {
         return res.status(404).json({ message: 'Gasto no encontrado' });

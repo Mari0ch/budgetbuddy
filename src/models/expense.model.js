@@ -2,22 +2,26 @@
 const pool = require('../config/db');
 
 const ExpenseModel = {
-  async getAll() {
+  async getAllByUser(userId) {
     const [rows] = await pool.query(
-      'SELECT * FROM expenses ORDER BY date DESC, created_at DESC'
+      'SELECT * FROM expenses WHERE user_id = ? ORDER BY date DESC, created_at DESC',
+      [userId]
     );
     return rows;
   },
 
-  async getById(id) {
-    const [rows] = await pool.query('SELECT * FROM expenses WHERE id = ?', [id]);
+  async getById(id, userId) {
+    const [rows] = await pool.query(
+      'SELECT * FROM expenses WHERE id = ? AND user_id = ?',
+      [id, userId]
+    );
     return rows[0] || null;
   },
 
-  async create({ description, amount, category, date }) {
+  async create({ description, amount, category, date, userId }) {
     const [result] = await pool.query(
-      'INSERT INTO expenses (description, amount, category, date) VALUES (?, ?, ?, ?)',
-      [description, amount, category || null, date]
+      'INSERT INTO expenses (description, amount, category, date, user_id) VALUES (?, ?, ?, ?, ?)',
+      [description, amount, category || null, date, userId]
     );
 
     return {
@@ -25,12 +29,16 @@ const ExpenseModel = {
       description,
       amount,
       category: category || null,
-      date
+      date,
+      user_id: userId
     };
   },
 
-  async delete(id) {
-    const [result] = await pool.query('DELETE FROM expenses WHERE id = ?', [id]);
+  async delete(id, userId) {
+    const [result] = await pool.query(
+      'DELETE FROM expenses WHERE id = ? AND user_id = ?',
+      [id, userId]
+    );
     return result.affectedRows > 0;
   }
 };
