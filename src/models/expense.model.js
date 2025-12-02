@@ -34,6 +34,15 @@ const ExpenseModel = {
     };
   },
 
+  async update(id, userId, { description, amount, category, date }) {
+    const [result] = await pool.query(
+      'UPDATE expenses SET description = ?, amount = ?, category = ?, date = ? WHERE id = ? AND user_id = ?',
+      [description, amount, category || null, date, id, userId]
+    );
+
+    return result.affectedRows > 0;
+  },
+
   async delete(id, userId) {
     const [result] = await pool.query(
       'DELETE FROM expenses WHERE id = ? AND user_id = ?',

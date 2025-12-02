@@ -7,6 +7,8 @@ const AUTH_URL = '/api/auth';
 // Estado de autenticación en el frontend
 let authToken = null;
 let currentUser = null;
+let editingExpenseId = null;
+
 
 // Elementos del DOM
 const form = document.getElementById('expense-form');
@@ -23,6 +25,8 @@ const logoutBtn = document.getElementById('logout-btn');
 const userStatus = document.getElementById('user-status');
 const appSection = document.getElementById('app-section');
 const authSection = document.getElementById('auth-section');
+
+const submitButton = document.querySelector('#expense-form button[type="submit"]');
 
 // Utilidad: construir headers con token
 function getAuthHeaders(includeJson = false) {
@@ -231,10 +235,19 @@ function renderExpenses(expenses) {
     amountCell.textContent = Number(expense.amount).toFixed(2);
 
     const actionsCell = document.createElement('td');
+
+    const editBtn = document.createElement('button');
+    editBtn.textContent = 'Editar';
+    editBtn.classList.add('action-button');
+    editBtn.style.marginRight = '0.5rem';
+    editBtn.addEventListener('click', () => startEdit(expense));
+
     const deleteBtn = document.createElement('button');
     deleteBtn.textContent = 'Eliminar';
     deleteBtn.classList.add('action-button');
     deleteBtn.addEventListener('click', () => handleDelete(expense.id));
+
+    actionsCell.appendChild(editBtn);
     actionsCell.appendChild(deleteBtn);
 
     tr.appendChild(dateCell);
@@ -246,6 +259,26 @@ function renderExpenses(expenses) {
     tableBody.appendChild(tr);
   });
 }
+
+function startEdit(expense) {
+  editingExpenseId = expense.id;
+
+  document.getElementById('description').value = expense.description;
+  document.getElementById('amount').value = expense.amount;
+  document.getElementById('category').value = expense.category || '';
+  document.getElementById('date').value = expense.date
+    ? new Date(expense.date).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+
+  formMessage.textContent = `Editando gasto #${expense.id}`;
+  formMessage.classList.remove('error');
+  formMessage.classList.add('success');
+
+  if (submitButton) {
+    submitButton.textContent = 'Actualizar gasto';
+  }
+}
+
 
 // 4) Guardar nuevo gasto
 form.addEventListener('submit', async (event) => {
@@ -279,9 +312,16 @@ form.addEventListener('submit', async (event) => {
     date
   };
 
+  // Si estamos editando, usamos PUT
+  const isEditing = editingExpenseId !== null;
+  const url = isEditing
+    ? `${EXPENSES_URL}/${editingExpenseId}`
+    : EXPENSES_URL;
+  const method = isEditing ? 'PUT' : 'POST';
+
   try {
-    const response = await fetch(EXPENSES_URL, {
-      method: 'POST',
+    const response = await fetch(url, {
+      method,
       headers: getAuthHeaders(true),
       body: JSON.stringify(body)
     });
@@ -294,23 +334,40 @@ form.addEventListener('submit', async (event) => {
     }
 
     if (!response.ok) {
-      throw new Error('Error al crear el gasto');
+      throw new Error(
+        isEditing ? 'Error al actualizar el gasto' : 'Error al crear el gasto'
+      );
     }
 
+    // Limpiar campos
     document.getElementById('description').value = '';
     document.getElementById('amount').value = '';
     document.getElementById('category').value = '';
+    // La fecha la dejamos como está
 
-    formMessage.textContent = 'Gasto guardado correctamente.';
+    if (isEditing) {
+      formMessage.textContent = 'Gasto actualizado correctamente.';
+    } else {
+      formMessage.textContent = 'Gasto guardado correctamente.';
+    }
     formMessage.classList.add('success');
+
+    // Reset de modo edición
+    editingExpenseId = null;
+    if (submitButton) {
+      submitButton.textContent = 'Guardar gasto';
+    }
 
     loadExpenses();
   } catch (error) {
     console.error(error);
-    formMessage.textContent = 'No se pudo guardar el gasto.';
+    formMessage.textContent = isEditing
+      ? 'No se pudo actualizar el gasto.'
+      : 'No se pudo guardar el gasto.';
     formMessage.classList.add('error');
   }
 });
+
 
 // 5) Eliminar gasto
 async function handleDelete(id) {
