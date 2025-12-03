@@ -7,13 +7,21 @@
   </head>
   <body>
     <header>
-      <div>
-        <h1>BudgetBuddy</h1>
-        <p>Gestor de gastos sencillo conectado a tu API</p>
+      <div class="branding">
+        <div class="logo-circle">BB</div>
+        <div>
+          <h1>BudgetBuddy</h1>
+          <p>Gestor de gastos sencillo conectado a tu API</p>
+        </div>
       </div>
-      <div id="user-info">
-        <!-- Aquí mostraremos el estado de sesión -->
-        <span id="user-status">No has iniciado sesión</span>
+
+      <div class="header-right">
+        <button id="theme-toggle" class="secondary small">
+          🌙 Modo oscuro
+        </button>
+        <div id="user-info">
+          <span id="user-status">No has iniciado sesión</span>
+        </div>
       </div>
     </header>
 
@@ -56,10 +64,14 @@
 
           <div class="auth-buttons">
             <button type="button" id="login-btn">Iniciar sesión</button>
-            <button type="button" id="register-btn" class="secondary">
+            <button type="button" id="register-btn" class="secondary-light">
               Registrarse
             </button>
-            <button type="button" id="logout-btn" class="secondary hidden">
+            <button
+              type="button"
+              id="logout-btn"
+              class="secondary-light hidden"
+            >
               Cerrar sesión
             </button>
           </div>
@@ -68,11 +80,41 @@
         </form>
       </section>
 
-      <!-- Sección principal de la app (solo visible cuando hay sesión) -->
+      <!-- Sección principal (solo cuando hay sesión) -->
       <section id="app-section" class="hidden">
-        <!-- Formulario para añadir un gasto -->
+        <!-- Resumen y gráficos -->
+        <section class="card" id="stats-section">
+          <h2>Resumen de gastos</h2>
+          <div class="stats-grid">
+            <div class="stat">
+              <span class="stat-label">Total gastado</span>
+              <span class="stat-value" id="total-amount">0,00 €</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Número de gastos</span>
+              <span class="stat-value" id="total-count">0</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Gasto medio</span>
+              <span class="stat-value" id="average-amount">0,00 €</span>
+            </div>
+          </div>
+
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3>Gasto por categoría</h3>
+              <canvas id="category-chart"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>Gasto por mes</h3>
+              <canvas id="monthly-chart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- Formulario gasto -->
         <section class="card">
-          <h2>Añadir nuevo gasto</h2>
+          <h2>Añadir / editar gasto</h2>
           <form id="expense-form">
             <div class="form-group">
               <label for="description">Descripción *</label>
@@ -117,7 +159,7 @@
           </form>
         </section>
 
-        <!-- Tabla de gastos -->
+        <!-- Tabla gastos -->
         <section class="card">
           <h2>Listado de gastos</h2>
           <table id="expenses-table">
@@ -130,15 +172,17 @@
                 <th>Acciones</th>
               </tr>
             </thead>
-            <tbody id="expenses-tbody">
-              <!-- Se rellenará desde JavaScript -->
-            </tbody>
+            <tbody id="expenses-tbody"></tbody>
           </table>
           <p id="table-message" class="message"></p>
         </section>
       </section>
     </main>
 
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Tu JS -->
     <script src="main.js"></script>
   </body>
 </html>
+
